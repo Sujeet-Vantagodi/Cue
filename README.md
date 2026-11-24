@@ -122,6 +122,15 @@ npm run dev
 
 Open `http://localhost:5173`. The next integration step is to connect the MCP manager and LLM router described below; no provider secret is required for the local demo.
 
+Optional local LLM fallback with Ollama:
+
+```env
+LLM_FALLBACK=ollama
+OLLAMA_MODEL=llama3.2:3b
+```
+
+With Ollama running locally, Cue tries it after Gemini fails before using the deterministic template planner.
+
 Run backend checks with:
 
 ```bash

@@ -11,6 +11,7 @@ from .guardrails import GuardrailError, Guardrails
 from .executor import Executor
 from .ledger import Ledger
 from .local_adapters import LocalDemoAdapters
+from .google_calendar import GoogleCalendarAdapter
 from .mcp_client.manager import MCPManager
 from .models import Action, ApprovalRequest, CreateEventRequest, Evidence, TrustMode
 from .planner import generate_plan
@@ -27,6 +28,10 @@ for tool in ("gmail_create_draft", "calendar_create_event", "notion_create_page"
     manager.register(tool, local_adapters.create)
 for tool in ("gmail_delete_draft", "calendar_delete_event", "notion_archive_page"):
     manager.register(tool, local_adapters.undo)
+if (ROOT.parent / "credentials.json").exists():
+    google_calendar = GoogleCalendarAdapter(ROOT.parent / "credentials.json", ROOT.parent / "token.json")
+    manager.register("calendar_create_event", google_calendar.create)
+    manager.register("calendar_delete_event", google_calendar.undo)
 app = FastAPI(title="Cue", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173"], allow_methods=["*"], allow_headers=["*"])
 
@@ -77,12 +82,21 @@ def create_event(request: CreateEventRequest) -> dict:
 
 @app.post("/api/events/{event_id}/execute")
 async def execute_event(event_id: str, request: ApprovalRequest) -> dict:
-    event = ledger.db.execute("SELECT plan FROM events WHERE id=?", (event_id,)).fetchone()
+    event = ledger.db.execute("SELECT plan, trust_mode FROM events WHERE id=?", (event_id,)).fetchone()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     plan = __import__("json").loads(event["plan"])
-    actions = [Action.model_validate(raw) for task in plan["tasks"] for raw in task["actions"]]
-    executed = await executor.execute(event_id, actions, set(request.approved_action_ids))
+    mode = TrustMode(event["trust_mode"])
+    actions: list[Action] = []
+    approved_ids: set[str] = set()
+    requested = set(request.approved_action_ids)
+    for raw in (raw_action for task in plan["tasks"] for raw_action in task["actions"]):
+        action = guardrails.normalize(Action.model_validate(raw))
+        decision = guardrails.decide(action, mode)
+        if action.id in requested and decision.allowed and (not decision.needs_approval or action.id in requested):
+            approved_ids.add(action.id)
+        actions.append(action)
+    executed = await executor.execute(event_id, actions, approved_ids)
     return {"event_id": event_id, "executed": executed, "receipts": ledger.list_actions(event_id)}
 
 
