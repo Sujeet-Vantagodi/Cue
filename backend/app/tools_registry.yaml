@@ -1,0 +1,14 @@
+gmail_search: {app: gmail, tier: READ}
+gmail_read_message: {app: gmail, tier: READ}
+gmail_create_draft: {app: gmail, tier: WRITE, undo: gmail_delete_draft}
+gmail_delete_draft: {app: gmail, tier: RISKY}
+calendar_list_events: {app: calendar, tier: READ}
+calendar_create_event: {app: calendar, tier: WRITE, undo: calendar_delete_event}
+calendar_delete_event: {app: calendar, tier: RISKY}
+notion_search: {app: notion, tier: READ}
+notion_create_page: {app: notion, tier: WRITE, low_risk_eligible: true, undo: notion_archive_page}
+notion_archive_page: {app: notion, tier: RISKY}
+web_search: {app: search, tier: READ}
+web_fetch: {app: search, tier: READ}
+browser_navigate: {app: browser, tier: READ, domain_allowlist: true}
+browser_snapshot: {app: browser, tier: READ}

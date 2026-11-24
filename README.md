@@ -103,6 +103,32 @@ cd frontend && npm install && npm run dev
 
 Open the web app, connect Google and Notion, type a life event, and review the Blast Radius.
 
+### Current local build
+
+The repository now includes a runnable safety-first vertical slice. It works without provider credentials using the local adapter, so you can exercise planning, Trust Dial decisions, approvals, rejection, and the SQLite receipt ledger immediately:
+
+```bash
+# terminal 1
+cd backend
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+
+# terminal 2 (requires Node.js 20+)
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173`. The next integration step is to connect the MCP manager and LLM router described below; no provider secret is required for the local demo.
+
+Run backend checks with:
+
+```bash
+cd backend
+pytest
+```
+
 ---
 
 ## 8. Design principles
