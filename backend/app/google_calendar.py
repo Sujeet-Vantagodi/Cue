@@ -63,7 +63,10 @@ class GoogleCalendarAdapter:
 
     async def create(self, args: dict[str, Any]) -> dict[str, Any]:
         service = self._service_client()
-        raw_date = str(args.get("date") or args.get("start") or "")
+        raw_date_value = args.get("date") or args.get("start") or ""
+        if isinstance(raw_date_value, dict):
+            raw_date_value = raw_date_value.get("date") or raw_date_value.get("dateTime") or ""
+        raw_date = str(raw_date_value)
         if not raw_date or raw_date == "TBD":
             raise ValueError("A concrete calendar date is required before creating an event")
         start = self._start_date(raw_date)

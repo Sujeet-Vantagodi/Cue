@@ -12,6 +12,7 @@ from .executor import Executor
 from .ledger import Ledger
 from .local_adapters import LocalDemoAdapters
 from .google_calendar import GoogleCalendarAdapter
+from .google_gmail import GoogleGmailAdapter
 from .mcp_client.manager import MCPManager
 from .models import Action, ApprovalRequest, CreateEventRequest, Evidence, TrustMode
 from .planner import generate_plan
@@ -29,9 +30,13 @@ for tool in ("gmail_create_draft", "calendar_create_event", "notion_create_page"
 for tool in ("gmail_delete_draft", "calendar_delete_event", "notion_archive_page"):
     manager.register(tool, local_adapters.undo)
 if (ROOT.parent / "credentials.json").exists():
-    google_calendar = GoogleCalendarAdapter(ROOT.parent / "credentials.json", ROOT.parent / "token.json")
+    credentials_path = ROOT.parent / "credentials.json"
+    google_calendar = GoogleCalendarAdapter(credentials_path, ROOT.parent / "token.json")
     manager.register("calendar_create_event", google_calendar.create)
     manager.register("calendar_delete_event", google_calendar.undo)
+    google_gmail = GoogleGmailAdapter(credentials_path, ROOT.parent / "gmail_token.json")
+    manager.register("gmail_create_draft", google_gmail.create)
+    manager.register("gmail_delete_draft", google_gmail.undo)
 app = FastAPI(title="Cue", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173"], allow_methods=["*"], allow_headers=["*"])
 

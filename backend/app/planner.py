@@ -62,6 +62,22 @@ def _validate_llm_plan(data: object) -> Plan:
     return Plan.model_validate(normalized)
 
 
+def _validate_plan_coverage(plan: Plan, user_text: str) -> Plan:
+    """Reject valid-looking plans that omit core actions for known event types."""
+    lower = user_text.lower()
+    tools = {action.tool for task in plan.tasks for action in task.actions}
+    if "calendar" in lower or "schedule" in lower:
+        required = {"calendar_create_event"}
+    elif any(word in lower for word in ("internship", "job", "joining", "offer")):
+        required = {"calendar_create_event", "notion_create_page", "gmail_create_draft"}
+    else:
+        required = set()
+    missing = required - tools
+    if missing:
+        raise ValueError(f"planner omitted required actions: {', '.join(sorted(missing))}")
+    return plan
+
+
 
 def _date(text: str) -> str:
     match = re.search(r"(?:starting|on|from)\s+([A-Za-z]+\s+\d{1,2}(?:,\s*\d{4})?|\d{4}-\d{2}-\d{2})", text, re.I)
@@ -69,6 +85,11 @@ def _date(text: str) -> str:
         return ""
     value = match.group(1)
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        return value
+    from datetime import datetime
+    try:
+        return datetime.strptime(value.replace(",", ""), "%B %d %Y").date().isoformat()
+    except ValueError:
         return value
 
 
@@ -81,12 +102,11 @@ def _align_calendar_dates(plan: Plan, user_text: str) -> Plan:
         for action in task.actions:
             if action.tool == "calendar_create_event":
                 action.args["date"] = requested_date
+                # Some providers use Google API-shaped start/end objects.
+                # Cue keeps one canonical date field for approval and adapters.
+                action.args.pop("start", None)
+                action.args.pop("end", None)
     return plan
-    from datetime import datetime
-    try:
-        return datetime.strptime(value.replace(",", ""), "%B %d %Y").date().isoformat()
-    except ValueError:
-        return value
 
 
 def create_plan(text: str) -> Plan:
@@ -138,12 +158,14 @@ Required fields: event_id, summary, tasks, task id/title/depends_on/actions, and
         if provider == "mock":
             raise RuntimeError("mock fallback cannot produce a plan")
         try:
-            return _align_calendar_dates(_validate_llm_plan(response["data"]), text), provider, None
+            plan = _validate_plan_coverage(_validate_llm_plan(response["data"]), text)
+            return _align_calendar_dates(plan, text), provider, None
         except Exception as first_error:
             repair_messages = messages + [{"role": "user", "content": f"Your JSON failed Cue validation: {first_error}. Return a corrected complete Plan JSON only. Do not omit required fields."}]
             repaired = call_llm(repair_messages)
             if str(repaired["provider"]) == "mock":
                 raise RuntimeError("mock fallback cannot repair a plan")
-            return _align_calendar_dates(_validate_llm_plan(repaired["data"]), text), str(repaired["provider"]), None
+            plan = _validate_plan_coverage(_validate_llm_plan(repaired["data"]), text)
+            return _align_calendar_dates(plan, text), str(repaired["provider"]), None
     except Exception as exc:
         return create_plan(text), "local-template", f"{type(exc).__name__}: {str(exc)[:180]}"

@@ -8,6 +8,10 @@ function plannerLabel(result: EventResponse): string {
   const reason = result.fallback_reason ?? "";
   if (reason.includes("429")) return "Gemini rate limit reached · local planner active";
   if (reason.includes("503")) return "Gemini temporarily unavailable · local planner active";
+  if (reason.includes("ollama") && reason.includes("gemini")) return "Gemini and Ollama unavailable · local planner active";
+  if (reason.includes("ollama")) return "Ollama unavailable · local planner active";
+  if (reason.includes("gemini")) return "Gemini unavailable · local planner active";
+  if (reason.includes("all LLM providers failed")) return "LLM providers unavailable · local planner active";
   return "Local planner active · schema validated";
 }
 

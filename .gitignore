@@ -1,6 +1,8 @@
 .env
 backend/credentials.json
 backend/token.json
+backend/gmail_token.json
+frontend/tsconfig.tsbuildinfo
 .venv/
 __pycache__/
 *.pyc
